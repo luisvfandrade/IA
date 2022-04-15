@@ -9,6 +9,8 @@
 import sys
 import copy
 from turtle import end_fill
+
+from sympy import true
 from search import Problem, Node, astar_search, breadth_first_tree_search, depth_first_tree_search, greedy_search, recursive_best_first_search
 
 
@@ -32,6 +34,7 @@ class Board:
     def __init__(self, n : int):
         self.size = n
         self.repr = [([0] * n) for _ in range(n)]
+        self.numbers = []
     
     def get_number(self, row: int, col: int) -> int:
         """ Devolve o valor na respetiva posição do tabuleiro. """
@@ -80,7 +83,6 @@ class Board:
         if len(lines[0].split()) != 1:
             sys.exit("File format not supported.")
         board = Board(int(lines[0]))
-        boardNumbers = []
 
         if len(lines) != board.size + 1:
             sys.exit("File format not supported.")
@@ -92,12 +94,14 @@ class Board:
             if len(nums) > board.size:
                 sys.exit("File format not supported.")
             for num in nums:
-                board.repr[row][col] = int(num)
-                boardNumbers.append(int(num))
+                n = int(num)
+                if n != 0:
+                    board.repr[row][col] = n
+                    board.numbers.append(n)
                 col += 1
             row += 1
 
-        if len(boardNumbers) == len(set(boardNumbers)):
+        if len(board.numbers) != len(set(board.numbers)):
             sys.exit("Board not valid, contains duplicate numbers.")
 
         return board
@@ -106,20 +110,14 @@ class Board:
         return self.size
 
     def get_all_numbers(self) -> list:
-        boardNumbers = []
-        for i in range(self.size):
-            for j in range(self.size):
-                number = self.repr[i][j]
-                if number != 0:
-                    boardNumbers.append(number)
-        
-        return boardNumbers
+        return self.numbers
 
     def set_number(self, row: int, col: int, number: int):
         try:
             self.repr[row][col] = number
         except IndexError as exception:
             sys.exit(exception)
+        self.numbers.append(number)
 
     def to_string(self) -> str:
         string = ""
@@ -161,13 +159,21 @@ class Numbrix(Problem):
                 horizontalNumbers = board.adjacent_horizontal_numbers(i, j)
                 for n in possibleNumbers:
                     if verticalNumbers[0] == 0:
-                        actions.append((i + 1, j, n))
+                        action = (i + 1, j, n)
+                        if action not in actions:
+                            actions.append(action)
                     if verticalNumbers[1] == 0:
-                        actions.append((i - 1, j, n))
+                        action = (i - 1, j, n)
+                        if action not in actions:
+                            actions.append(action)
                     if horizontalNumbers[0] == 0:
-                        actions.append((i, j - 1, n))
+                        action = (i, j - 1, n)
+                        if action not in actions:
+                            actions.append(action)
                     if horizontalNumbers[1] == 0:
-                        actions.append((i, j + 1, n))
+                        action = (i, j - 1, n)
+                        if action not in actions:
+                            actions.append(action)
 
         return actions
 
@@ -212,7 +218,24 @@ class Numbrix(Problem):
 
     def h(self, node: Node):
         """ Função heuristica utilizada para a procura A*. """
+        board = node.state.get_board()
+        boardSize = board.get_size()
+
+        toComplete = {}
+        for i in range(boardSize):
+            row = "row" + str(i)
+            for j in range(boardSize):
+                col = "col" + str(j)
+                if board.get_number(i, j) == 0:
+                    toComplete[row] = True
+                    toComplete[col] = True
+                    
+        return len(toComplete)
+
+        '''
+        #Alternative
         return len(self.actions(node.state))
+        '''
 
 
 if __name__ == "__main__":
@@ -238,7 +261,7 @@ if __name__ == "__main__":
     print("Solution:\n", s5.get_board().to_string(), sep="")
     '''
 
-    # Usar uma técnica de procura para resolver a instância,
+    # Usar uma técnastara resolver a instância,
     solutionNode = astar_search(problem)
 
     # Retirar a solução a partir do nó resultante,
