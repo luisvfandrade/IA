@@ -31,6 +31,9 @@ class NumbrixState:
     def __eq__(self, obj):
         return isinstance(obj, NumbrixState) and self.board == obj.get_board()
 
+    def __hash__(self):
+        return hash(str(self.board.repr))
+
 
 class Board:
     """ Representação interna de um tabuleiro de Numbrix. """
@@ -38,6 +41,7 @@ class Board:
         self.size = n
         self.repr = [([0] * n) for _ in range(n)]
         self.numbers = []
+        self.positions = {}
     
     def get_number(self, row: int, col: int) -> int:
         """ Devolve o valor na respetiva posição do tabuleiro. """
@@ -101,6 +105,7 @@ class Board:
                 if n != 0:
                     board.repr[row][col] = n
                     board.numbers.append(n)
+                    board.positions[n] = (row, col)
                 col += 1
             row += 1
 
@@ -115,12 +120,38 @@ class Board:
     def get_all_numbers(self) -> list:
         return self.numbers
 
+    def get_all_positions(self) -> dict:
+        return self.positions
+
     def set_number(self, row: int, col: int, number: int):
         try:
             self.repr[row][col] = number
         except IndexError as exception:
             sys.exit(exception)
         self.numbers.append(number)
+        self.positions[number] = (row, col)
+
+    def get_position_actions(self, row: int, col: int):
+        minNumber = self.size ** 2 + 1
+        maxNumber = 0
+        for number in self.positions:
+            numberPosition = self.positions[number]
+            manhattanDistance = abs(row - numberPosition[0]) + abs(col - numberPosition[1])
+
+            minPossibility = number - manhattanDistance
+            if minPossibility >= 1 and minPossibility < minNumber:
+                minNumber = minPossibility
+
+            maxPossibility = number + manhattanDistance
+            if maxPossibility <= (self.size ** 2) and maxPossibility > maxNumber:
+                maxNumber = maxPossibility
+        
+        actions = []
+        for possibleNumber in range(minPossibility, maxPossibility + 1):
+            if possibleNumber not in self.positions:
+                actions.append((row, col, possibleNumber))
+
+        return actions
 
     def to_string(self) -> str:
         string = ""
@@ -137,10 +168,10 @@ class Board:
         if not isinstance(obj, Board) or self.size != obj.get_size() or set(self.numbers) != set(obj.get_all_numbers()):
             return False
 
-        for i in range(self.size):
-            for j in range(self.size):
-                if self.repr[i][j] != obj.get_number(i, j):
-                    return False
+        for number in self.positions:
+            objPositions = obj.get_all_positions()
+            if self.positions[number] != objPositions[number]:
+                return False
 
         return True
 
@@ -153,54 +184,17 @@ class Numbrix(Problem):
     def actions(self, state: NumbrixState):
         """ Retorna uma lista de ações que podem ser executadas a
         partir do estado passado como argumento. """
-        actions = {}
-        actionsList = []
         board = state.get_board()
         boardSize = board.get_size()
-        boardNumbers = board.get_all_numbers()
-        
-        def add_action(action, adjacentNumber):
-            actions.setdefault(n, [])
-            verticalNumbers = board.adjacent_vertical_numbers(action[0], action[1])
-            horizontalNumbers = board.adjacent_horizontal_numbers(action[0], action[1])
-            if action not in actions[n] and ((adjacentNumber not in boardNumbers and \
-                (0 in verticalNumbers or 0 in horizontalNumbers)) or adjacentNumber in \
-                    verticalNumbers or adjacentNumber in horizontalNumbers):
-                actions[n].append(action)
-                actionsList.append(action)
 
+        actions = []
         for i in range(boardSize):
             for j in range(boardSize):
                 number = board.get_number(i, j)
                 if number == 0:
-                    continue
+                    actions += board.get_position_actions(i, j)
 
-                possibleNumbers = []
-                if number + 1 <= (boardSize ** 2) and number + 1 not in boardNumbers:
-                    possibleNumbers.append(number + 1)
-                if number - 1 > 0 and number - 1 not in boardNumbers:
-                    possibleNumbers.append(number - 1)
-
-                verticalNumbers = board.adjacent_vertical_numbers(i, j)
-                horizontalNumbers = board.adjacent_horizontal_numbers(i, j)
-                for n in possibleNumbers:
-                    adjacentNumber = n + 1 if number == n - 1 else n - 1
-                    if verticalNumbers[0] == 0:
-                        action = (i + 1, j, n)
-                        add_action(action, adjacentNumber)
-                    if verticalNumbers[1] == 0:
-                        action = (i - 1, j, n)
-                        add_action(action, adjacentNumber)
-                    if horizontalNumbers[0] == 0:
-                        action = (i, j - 1, n)
-                        add_action(action, adjacentNumber)
-                    if horizontalNumbers[1] == 0:
-                        action = (i, j + 1, n)
-                        add_action(action, adjacentNumber)
-        
-        actionsList = sorted(actionsList, key = lambda action : len(actions[action[2]]))
-
-        return actionsList
+        return actions
 
     def result(self, state: NumbrixState, action):
         """ Retorna o estado resultante de executar a 'action' sobre
@@ -247,39 +241,13 @@ class Numbrix(Problem):
         board = node.state.get_board()
         boardSize = board.get_size()
 
-        toComplete = {}
-        for i in range(boardSize):
-            row = "row" + str(i)
-            for j in range(boardSize):
-                col = "col" + str(j)
-                if board.get_number(i, j) == 0:
-                    toComplete[row] = True
-                    toComplete[col] = True
+        base = (boardSize ** 2) - len(board.get_all_numbers())
+        if node.path_cost != 0:
+            parentBoard = node.parent.state.get_board()
+            action = node.action
+            base -= ((boardSize ** 2) - len(parentBoard.get_position_actions(action[0], action[1])))
                     
-        return len(toComplete)
-
-        '''
-        #Alternative
-        board = node.state.get_board()
-        boardSize = board.get_size()
-        boardNumbers = board.get_all_numbers()
-
-        completedNumbers = 0
-        for number in boardNumbers:
-            if number == 1 and number + 1 in boardNumbers:
-                completedNumbers += 1
-            elif number == (boardSize ** 2) and number - 1 in boardNumbers:
-                completedNumbers += 1
-            elif number - 1 in boardNumbers and number + 1 in boardNumbers:
-                completedNumbers += 1
-        
-        return completedNumbers
-        '''
-
-        '''
-        #Alternative
-        return len(self.actions(node.state))
-        '''
+        return base
 
 
 if __name__ == "__main__":
