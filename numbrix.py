@@ -30,6 +30,9 @@ class NumbrixState:
 
     def __eq__(self, obj):
         return isinstance(obj, NumbrixState) and self.board == obj.get_board()
+    
+    def __hash__(self):
+        return hash(str(self.board.repr))
 
 
 class Board:
