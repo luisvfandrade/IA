@@ -28,6 +28,9 @@ class NumbrixState:
     def get_board(self) -> list:
         return self.board
 
+    def __eq__(self, obj):
+        return isinstance(obj, NumbrixState) and self.board == obj.get_board()
+
 
 class Board:
     """ Representação interna de um tabuleiro de Numbrix. """
@@ -130,6 +133,17 @@ class Board:
 
         return string
 
+    def __eq__(self, obj):
+        if not isinstance(obj, Board) or self.size != obj.get_size() or set(self.numbers) != set(obj.get_all_numbers()):
+            return False
+
+        for i in range(self.size):
+            for j in range(self.size):
+                if self.repr[i][j] != obj.get_number(i, j):
+                    return False
+
+        return True
+
 
 class Numbrix(Problem):
     def __init__(self, board: Board):
@@ -140,9 +154,21 @@ class Numbrix(Problem):
         """ Retorna uma lista de ações que podem ser executadas a
         partir do estado passado como argumento. """
         actions = {}
+        actionsList = []
         board = state.get_board()
         boardSize = board.get_size()
         boardNumbers = board.get_all_numbers()
+        
+        def add_action(action, adjacentNumber):
+            actions.setdefault(n, [])
+            verticalNumbers = board.adjacent_vertical_numbers(action[0], action[1])
+            horizontalNumbers = board.adjacent_horizontal_numbers(action[0], action[1])
+            if action not in actions[n] and ((adjacentNumber not in boardNumbers and \
+                (0 in verticalNumbers or 0 in horizontalNumbers)) or adjacentNumber in \
+                    verticalNumbers or adjacentNumber in horizontalNumbers):
+                actions[n].append(action)
+                actionsList.append(action)
+
         for i in range(boardSize):
             for j in range(boardSize):
                 number = board.get_number(i, j)
@@ -161,56 +187,20 @@ class Numbrix(Problem):
                     adjacentNumber = n + 1 if number == n - 1 else n - 1
                     if verticalNumbers[0] == 0:
                         action = (i + 1, j, n)
-                        actions.setdefault(n, [])
-                        if action not in actions[n] and (adjacentNumber \
-                            not in boardNumbers or adjacentNumber in \
-                                board.adjacent_vertical_numbers(action[0], action[1]) \
-                                    or adjacentNumber in \
-                                        board.adjacent_horizontal_numbers(action[0], action[1])):
-                            actions[n].append(action)
+                        add_action(action, adjacentNumber)
                     if verticalNumbers[1] == 0:
                         action = (i - 1, j, n)
-                        actions.setdefault(n, [])
-                        if action not in actions[n] and (adjacentNumber \
-                            not in boardNumbers or adjacentNumber in \
-                                board.adjacent_vertical_numbers(action[0], action[1]) \
-                                    or adjacentNumber in \
-                                        board.adjacent_horizontal_numbers(action[0], action[1])):
-                            actions[n].append(action)
+                        add_action(action, adjacentNumber)
                     if horizontalNumbers[0] == 0:
                         action = (i, j - 1, n)
-                        actions.setdefault(n, [])
-                        if action not in actions[n] and (adjacentNumber \
-                            not in boardNumbers or adjacentNumber in \
-                                board.adjacent_vertical_numbers(action[0], action[1]) \
-                                    or adjacentNumber in \
-                                        board.adjacent_horizontal_numbers(action[0], action[1])):
-                            actions[n].append(action)
+                        add_action(action, adjacentNumber)
                     if horizontalNumbers[1] == 0:
                         action = (i, j + 1, n)
-                        actions.setdefault(n, [])
-                        if action not in actions[n] and (adjacentNumber \
-                            not in boardNumbers or adjacentNumber in \
-                                board.adjacent_vertical_numbers(action[0], action[1]) \
-                                    or adjacentNumber in \
-                                        board.adjacent_horizontal_numbers(action[0], action[1])):
-                            actions[n].append(action)
+                        add_action(action, adjacentNumber)
         
-        minActions = []
-        numMinActions = float('inf')
-        for number in actions:
-            numActions = len(actions[number])
-            if numActions < numMinActions:
-                numMinActions = numActions
-                minActions = actions[number].copy()
-            elif numActions == numMinActions:
-                minActions += actions[number].copy()
+        actionsList = sorted(actionsList, key = lambda action : len(actions[action[2]]))
 
-        print(board.to_string())
-        print(actions)
-        print(minActions)
-
-        return minActions
+        return actionsList
 
     def result(self, state: NumbrixState, action):
         """ Retorna o estado resultante de executar a 'action' sobre
@@ -253,6 +243,7 @@ class Numbrix(Problem):
 
     def h(self, node: Node):
         """ Função heuristica utilizada para a procura A*. """
+        # (boardSize ** 2) - len(boardNumbers) - optimism (manhattanDistance?)
         board = node.state.get_board()
         boardSize = board.get_size()
 
