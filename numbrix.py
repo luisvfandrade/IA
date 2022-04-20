@@ -139,15 +139,18 @@ class Board:
             manhattanDistance = abs(row - numberPosition[0]) + abs(col - numberPosition[1])
 
             minPossibility = number - manhattanDistance
-            if minPossibility >= 1 and minPossibility < minNumber:
+            if minPossibility >= 0 and minPossibility < minNumber:
                 minNumber = minPossibility
 
             maxPossibility = number + manhattanDistance
-            if maxPossibility <= (self.size ** 2) and maxPossibility > maxNumber:
+            if maxPossibility <= (self.size ** 2) + 1 and maxPossibility > maxNumber:
                 maxNumber = maxPossibility
         
         actions = []
-        for possibleNumber in range(minPossibility, maxPossibility + 1):
+        for possibleNumber in range(1, minPossibility + 1):
+            if possibleNumber not in self.positions:
+                actions.append((row, col, possibleNumber))
+        for possibleNumber in range(maxPossibility, (self.size ** 2) + 1):
             if possibleNumber not in self.positions:
                 actions.append((row, col, possibleNumber))
 
