@@ -122,6 +122,9 @@ class Board:
 
     def get_all_positions(self) -> dict:
         return self.positions
+    
+    def get_position_actions(self, row: int, col: int) -> int:
+        return self.positionActions[(row, col)]
 
     def set_number(self, row: int, col: int, number: int):
         try:
@@ -131,30 +134,8 @@ class Board:
         self.numbers.append(number)
         self.positions[number] = (row, col)
 
-    def get_position_actions(self, row: int, col: int):
-        minNumber = self.size ** 2 + 1
-        maxNumber = 0
-        for number in self.positions:
-            numberPosition = self.positions[number]
-            manhattanDistance = abs(row - numberPosition[0]) + abs(col - numberPosition[1])
-
-            minPossibility = number - manhattanDistance
-            if minPossibility >= 0 and minPossibility < minNumber:
-                minNumber = minPossibility
-
-            maxPossibility = number + manhattanDistance
-            if maxPossibility <= (self.size ** 2) + 1 and maxPossibility > maxNumber:
-                maxNumber = maxPossibility
-        
-        actions = []
-        for possibleNumber in range(1, minPossibility + 1):
-            if possibleNumber not in self.positions:
-                actions.append((row, col, possibleNumber))
-        for possibleNumber in range(maxPossibility, (self.size ** 2) + 1):
-            if possibleNumber not in self.positions:
-                actions.append((row, col, possibleNumber))
-
-        return actions
+    def set_position_actions(self, positionActions: dict):
+        self.positionActions = positionActions
 
     def to_string(self) -> str:
         string = ""
@@ -189,15 +170,52 @@ class Numbrix(Problem):
         partir do estado passado como argumento. """
         board = state.get_board()
         boardSize = board.get_size()
+        boardPositions = board.get_all_positions()
 
-        actions = []
-        for i in range(boardSize):
-            for j in range(boardSize):
-                number = board.get_number(i, j)
-                if number == 0:
-                    actions += board.get_position_actions(i, j)
+        actions = {}
+        positions = {}
+        for row in range(boardSize):
+            for col in range(boardSize):
+                if board.get_number(row, col) != 0:
+                    continue
+                
+                positions[(row, col)] = 0
+                minNumber = boardSize ** 2 + 1
+                maxNumber = 0
+                for number in boardPositions:
+                    numberPosition = boardPositions[number]
+                    manhattanDistance = abs(row - numberPosition[0]) + abs(col - numberPosition[1])
 
-        return actions
+                    minPossibility = number - manhattanDistance
+                    if minPossibility >= 0 and minPossibility < minNumber:
+                        minNumber = minPossibility
+
+                    maxPossibility = number + manhattanDistance
+                    if maxPossibility <= (boardSize ** 2) + 1 and maxPossibility > maxNumber:
+                        maxNumber = maxPossibility
+
+                for possibleNumber in range(1, minPossibility + 1):
+                    if possibleNumber not in boardPositions:
+                        actions.setdefault(possibleNumber, [])
+                        actions[possibleNumber].append((row, col, possibleNumber))
+                        positions[(row, col)] += 1
+                for possibleNumber in range(maxPossibility, (boardSize ** 2) + 1):
+                    if possibleNumber not in boardPositions:
+                        actions.setdefault(possibleNumber, [])
+                        actions[possibleNumber].append((row, col, possibleNumber))
+                        positions[(row, col)] += 1
+
+        board.set_position_actions(positions)
+        if not actions:
+            return []
+        else:
+            minActions = (float('inf'), 0)
+            for possibleNumber in actions:
+                numActions = len(actions[possibleNumber])
+                if numActions < minActions[0]:
+                    minActions = (numActions, possibleNumber)
+
+            return actions[minActions[1]]
 
     def result(self, state: NumbrixState, action):
         """ Retorna o estado resultante de executar a 'action' sobre
@@ -248,8 +266,8 @@ class Numbrix(Problem):
         if node.path_cost != 0:
             parentBoard = node.parent.state.get_board()
             action = node.action
-            base -= ((boardSize ** 2) - len(parentBoard.get_position_actions(action[0], action[1])))
-                    
+            base -= ((boardSize ** 2 - len(parentBoard.get_all_numbers())) - parentBoard.get_position_actions(action[0], action[1]))
+     
         return base
 
 
