@@ -8,10 +8,8 @@
 
 import sys
 import copy
-from turtle import end_fill
-
-from sympy import true
 from search import Problem, Node, astar_search, breadth_first_tree_search, depth_first_tree_search, greedy_search, recursive_best_first_search
+from utils import manhattan_distance
 
 
 class NumbrixState:
@@ -126,6 +124,25 @@ class Board:
     def get_position_actions(self, row: int, col: int) -> int:
         return self.positionActions[(row, col)]
 
+    def get_holes(self) -> int:
+        holes = 0
+        for row in range(self.size):
+            for col in range(self.size):
+                if self.repr[row][col] == 0 and self.adjacent_vertical_numbers(row, col)[1] != 0 and self.adjacent_horizontal_numbers(row, col)[0] != 0:
+                    holes += 1
+        
+        return holes
+
+    def get_sequences(self) -> int:
+        sequences = 0
+        previousNumber = -1
+        for number in set(self.numbers):
+            if number != previousNumber + 1:
+                sequences += 1
+            previousNumber = number
+
+        return sequences
+
     def set_number(self, row: int, col: int, number: int):
         try:
             self.repr[row][col] = number
@@ -172,6 +189,9 @@ class Numbrix(Problem):
         boardSize = board.get_size()
         boardPositions = board.get_all_positions()
 
+        if len(board.get_all_numbers()) == (boardSize ** 2):
+            return []
+
         actions = {}
         positions = {}
         for row in range(boardSize):
@@ -179,43 +199,37 @@ class Numbrix(Problem):
                 if board.get_number(row, col) != 0:
                     continue
                 
-                positions[(row, col)] = 0
-                minNumber = boardSize ** 2 + 1
-                maxNumber = 0
-                for number in boardPositions:
-                    numberPosition = boardPositions[number]
-                    manhattanDistance = abs(row - numberPosition[0]) + abs(col - numberPosition[1])
+                positions.setdefault((row, col), 0)
+                for possibleNumber in range(1, boardSize ** 2 + 1):
+                    if possibleNumber in boardPositions:
+                        continue
 
-                    minPossibility = number - manhattanDistance
-                    if minPossibility >= 0 and minPossibility < minNumber:
-                        minNumber = minPossibility
+                    possible = True
+                    for number in boardPositions:
+                        absoluteValue = abs(possibleNumber - number)
+                        manhattanDistance = manhattan_distance((row, col), boardPositions[number])
+                        if manhattanDistance > absoluteValue or manhattanDistance % 2 != absoluteValue % 2:
+                            possible = False
+                            break
 
-                    maxPossibility = number + manhattanDistance
-                    if maxPossibility <= (boardSize ** 2) + 1 and maxPossibility > maxNumber:
-                        maxNumber = maxPossibility
-
-                for possibleNumber in range(1, minPossibility + 1):
-                    if possibleNumber not in boardPositions:
-                        actions.setdefault(possibleNumber, [])
-                        actions[possibleNumber].append((row, col, possibleNumber))
-                        positions[(row, col)] += 1
-                for possibleNumber in range(maxPossibility, (boardSize ** 2) + 1):
-                    if possibleNumber not in boardPositions:
-                        actions.setdefault(possibleNumber, [])
+                    actions.setdefault(possibleNumber, [])
+                    if possible:
                         actions[possibleNumber].append((row, col, possibleNumber))
                         positions[(row, col)] += 1
 
+                if positions[(row, col)] == 0:
+                    return []
         board.set_position_actions(positions)
-        if not actions:
-            return []
-        else:
-            minActions = (float('inf'), 0)
-            for possibleNumber in actions:
-                numActions = len(actions[possibleNumber])
-                if numActions < minActions[0]:
-                    minActions = (numActions, possibleNumber)
 
-            return actions[minActions[1]]
+        minActions = (float('inf'), 0)
+        for possibleNumber in actions:
+            numActions = len(actions[possibleNumber])
+            if numActions == 0:
+                return []
+            elif numActions < minActions[0]:
+                minActions = (numActions, possibleNumber)            
+
+        return actions[minActions[1]]
 
     def result(self, state: NumbrixState, action):
         """ Retorna o estado resultante de executar a 'action' sobre
@@ -262,11 +276,11 @@ class Numbrix(Problem):
         board = node.state.get_board()
         boardSize = board.get_size()
 
-        base = (boardSize ** 2) - len(board.get_all_numbers())
+        base = (boardSize ** 2) - len(board.get_all_numbers()) + board.get_holes() + board.get_sequences()
         if node.path_cost != 0:
             parentBoard = node.parent.state.get_board()
             action = node.action
-            base -= ((boardSize ** 2 - len(parentBoard.get_all_numbers())) - parentBoard.get_position_actions(action[0], action[1]))
+            base += parentBoard.get_position_actions(action[0], action[1])
      
         return base
 
@@ -277,22 +291,6 @@ if __name__ == "__main__":
         sys.exit("Incorrect Program Usage.\nCorrect Usage: $ python3 numbrix.py <instance_file>")
     board = Board.parse_instance(sys.argv[1])
     problem = Numbrix(board)
-
-    '''
-    # Example
-
-    s0 = NumbrixState(board)
-    print("Initial:\n", s0.get_board().to_string(), sep = "")
-
-    s1 = problem.result(s0, problem.actions(s0)[1])
-    s2 = problem.result(s1, problem.actions(s1)[0])
-    s3 = problem.result(s2, problem.actions(s2)[1])
-    s4 = problem.result(s3, problem.actions(s3)[0])
-    s5 = problem.result(s4, problem.actions(s4)[0])
-
-    print("Is goal?", problem.goal_test(s5))
-    print("Solution:\n", s5.get_board().to_string(), sep="")
-    '''
 
     # Usar uma técnastara resolver a instância,
     solutionNode = astar_search(problem)
