@@ -6,6 +6,7 @@
 # 94179 Luis Freire D'Andrade
 # 95531 Ana Rita Duarte
 
+from pickletools import int4
 import sys
 import copy
 from search import Problem, Node, astar_search, breadth_first_tree_search, depth_first_tree_search, greedy_search, recursive_best_first_search
@@ -26,12 +27,6 @@ class NumbrixState:
     def get_board(self) -> list:
         return self.board
 
-    def __eq__(self, obj):
-        return isinstance(obj, NumbrixState) and self.board == obj.get_board()
-
-    def __hash__(self):
-        return hash(str(self.board.repr))
-
 
 class Board:
     """ Representação interna de um tabuleiro de Numbrix. """
@@ -40,6 +35,8 @@ class Board:
         self.repr = [([0] * n) for _ in range(n)]
         self.numbers = []
         self.positions = {}
+        self.positionActionsChosen = False
+        self.numberActionsChosen = False
     
     def get_number(self, row: int, col: int) -> int:
         """ Devolve o valor na respetiva posição do tabuleiro. """
@@ -120,9 +117,18 @@ class Board:
 
     def get_all_positions(self) -> dict:
         return self.positions
+
+    def position_actions_chosen(self) -> int:
+        return self.positionActionsChosen
+
+    def number_actions_chosen(self) -> int:
+        return self.numberActionsChosen
     
     def get_position_actions(self, row: int, col: int) -> int:
-        return self.positionActions[(row, col)]
+        return len(self.positionActions[(row, col)])
+
+    def get_number_actions(self, number: int) -> int:
+        return len(self.numberActions[number])
 
     def get_holes(self) -> int:
         holes = 0
@@ -152,7 +158,12 @@ class Board:
         self.positions[number] = (row, col)
 
     def set_position_actions(self, positionActions: dict):
+        self.numberActionsChosen = True
         self.positionActions = positionActions
+
+    def set_number_actions(self, numberActions: dict):
+        self.positionActionsChosen = True
+        self.numberActions = numberActions
 
     def to_string(self) -> str:
         string = ""
@@ -161,20 +172,10 @@ class Board:
                 string += str(self.repr[i][j])
                 if j != self.size - 1:
                     string += '\t'
-            string += '\n'
+            if i != self.size - 1:
+                string += '\n'
 
         return string
-
-    def __eq__(self, obj):
-        if not isinstance(obj, Board) or self.size != obj.get_size() or set(self.numbers) != set(obj.get_all_numbers()):
-            return False
-
-        for number in self.positions:
-            objPositions = obj.get_all_positions()
-            if self.positions[number] != objPositions[number]:
-                return False
-
-        return True
 
 
 class Numbrix(Problem):
@@ -194,16 +195,17 @@ class Numbrix(Problem):
 
         actions = {}
         positions = {}
+        minPositionActions = (float('inf'), (0, 0))
         for row in range(boardSize):
             for col in range(boardSize):
                 if board.get_number(row, col) != 0:
                     continue
                 
-                positions.setdefault((row, col), 0)
+                positions.setdefault((row, col), [])
                 for possibleNumber in range(1, boardSize ** 2 + 1):
                     if possibleNumber in boardPositions:
                         continue
-
+                    
                     possible = True
                     for number in boardPositions:
                         absoluteValue = abs(possibleNumber - number)
@@ -215,35 +217,44 @@ class Numbrix(Problem):
                     actions.setdefault(possibleNumber, [])
                     if possible:
                         actions[possibleNumber].append((row, col, possibleNumber))
-                        positions[(row, col)] += 1
+                        positions[(row, col)].append((row, col, possibleNumber))
 
-                if positions[(row, col)] == 0:
+                positionActions = len(positions[(row, col)])
+                if positionActions == 0:
                     return []
-        board.set_position_actions(positions)
+                elif positionActions < minPositionActions[0]:
+                    minPositionActions = (positionActions, (row, col))
 
-        minActions = (float('inf'), 0)
+        minNumActions = (float('inf'), 0)
         for possibleNumber in actions:
             numActions = len(actions[possibleNumber])
             if numActions == 0:
                 return []
-            elif numActions < minActions[0]:
-                minActions = (numActions, possibleNumber)            
+            elif numActions < minNumActions[0]:
+                minNumActions = (numActions, possibleNumber) 
 
-        return actions[minActions[1]]
+        if minPositionActions[0] < minNumActions[0]:
+            board.set_number_actions(actions)
+            return positions[minPositionActions[1]]
+        else:
+            board.set_position_actions(positions)
+            return actions[minNumActions[1]]
 
     def result(self, state: NumbrixState, action):
         """ Retorna o estado resultante de executar a 'action' sobre
         'state' passado como argumento. A ação a executar deve ser uma
         das presentes na lista obtida pela execução de 
         self.actions(state). """
-        resultState = copy.deepcopy(state)
-        
-        boardActions = self.actions(resultState)
-        if action not in boardActions:
-            sys.exit("Action not valid, not contained in possible actions.")
+        board = state.get_board()
+        boardPositions = board.get_all_positions()
+        resultBoard = Board(board.get_size())
+        for number in boardPositions:
+            position = boardPositions[number]
+            resultBoard.set_number(position[0], position[1], number)
 
-        resultState.get_board().set_number(action[0], action[1], action[2])
-        return resultState
+        resultBoard.set_number(action[0], action[1], action[2])
+
+        return NumbrixState(resultBoard)
 
     def goal_test(self, state: NumbrixState):
         """ Retorna True se e só se o estado passado como argumento é
@@ -252,23 +263,7 @@ class Numbrix(Problem):
         board = state.get_board()
         boardSize = board.get_size()
 
-        boardNumbers = board.get_all_numbers()
-        if len(set(boardNumbers)) < (boardSize ** 2):
-            return False
-        
-        for i in range(boardSize):
-            for j in range(boardSize):
-                number = board.get_number(i, j)
-                verticalNumbers = board.adjacent_vertical_numbers(i, j)
-                horizontalNumbers = board.adjacent_horizontal_numbers(i, j)
-                if number + 1 <= (boardSize ** 2) and number + 1 not in \
-                    verticalNumbers and number + 1 not in horizontalNumbers:
-                    return False
-                if number - 1 > 0 and number - 1 not in verticalNumbers \
-                    and number - 1 not in horizontalNumbers:
-                    return False
-        
-        return True
+        return len(board.get_all_numbers()) == boardSize ** 2
 
     def h(self, node: Node):
         """ Função heuristica utilizada para a procura A*. """
@@ -280,20 +275,21 @@ class Numbrix(Problem):
         if node.path_cost != 0:
             parentBoard = node.parent.state.get_board()
             action = node.action
-            base += parentBoard.get_position_actions(action[0], action[1])
-     
+            if board.number_actions_chosen():
+                base += parentBoard.get_position_actions(action[0], action[1])
+            elif board.position_actions_chosen():
+                base += parentBoard.get_number_actions(action[2])
+
         return base
 
 
 if __name__ == "__main__":
     # Ler o ficheiro de input de sys.argv[1],
-    if len(sys.argv) != 2:
-        sys.exit("Incorrect Program Usage.\nCorrect Usage: $ python3 numbrix.py <instance_file>")
     board = Board.parse_instance(sys.argv[1])
     problem = Numbrix(board)
 
     # Usar uma técnastara resolver a instância,
-    solutionNode = astar_search(problem)
+    solutionNode = greedy_search(problem)
 
     # Retirar a solução a partir do nó resultante,
     solutionState = solutionNode.state
