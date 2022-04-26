@@ -8,8 +8,9 @@
 
 from pickletools import int4
 import sys
+import time
 import copy
-from search import Problem, Node, astar_search, breadth_first_tree_search, depth_first_tree_search, greedy_search, recursive_best_first_search
+from search import Problem, Node, compare_searchers, astar_search, breadth_first_tree_search, depth_first_tree_search, greedy_search, recursive_best_first_search
 from utils import manhattan_distance
 
 
@@ -285,14 +286,26 @@ class Numbrix(Problem):
 
 if __name__ == "__main__":
     # Ler o ficheiro de input de sys.argv[1],
+    start_time = time.time()
+
+
     board = Board.parse_instance(sys.argv[1])
     problem = Numbrix(board)
 
     # Usar uma técnastara resolver a instância,
     solutionNode = greedy_search(problem)
 
+    print("__________________________")
+    compare_searchers([problem], header = ['Searcher', 'problem'], searchers = [depth_first_tree_search, breadth_first_tree_search, greedy_search, astar_search])
+    print("Execution time:", time.time() - start_time, "seconds")
+    print("__________________________")
+
     # Retirar a solução a partir do nó resultante,
+    '''
     solutionState = solutionNode.state
+    '''
 
     # Imprimir para o standard output no formato indicado.
+    '''
     print(solutionState.get_board().to_string())
+    '''
