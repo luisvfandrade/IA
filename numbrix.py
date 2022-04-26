@@ -271,7 +271,7 @@ class Numbrix(Problem):
         board = node.state.get_board()
         boardSize = board.get_size()
 
-        base = (boardSize ** 2) - len(board.get_all_numbers()) + board.get_holes() + board.get_sequences()
+        base = (boardSize ** 2) - len(board.get_all_numbers()) + board.get_holes()
         if node.path_cost != 0:
             parentBoard = node.parent.state.get_board()
             action = node.action
