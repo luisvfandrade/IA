@@ -1,7 +1,3 @@
-# numbrix.py: Template para implementação do projeto de Inteligência Artificial 2021/2022.
-# Devem alterar as classes e funções neste ficheiro de acordo com as instruções do enunciado.
-# Além das funções e classes já definidas, podem acrescentar outras que considerem pertinentes.
-
 # Grupo 17:
 # 94179 Luis Freire D'Andrade
 # 95531 Ana Rita Duarte
