@@ -139,16 +139,6 @@ class Board:
         
         return holes
 
-    def get_sequences(self) -> int:
-        sequences = 0
-        previousNumber = -1
-        for number in set(self.numbers):
-            if number != previousNumber + 1:
-                sequences += 1
-            previousNumber = number
-
-        return sequences
-
     def set_number(self, row: int, col: int, number: int):
         try:
             self.repr[row][col] = number
@@ -271,7 +261,7 @@ class Numbrix(Problem):
         board = node.state.get_board()
         boardSize = board.get_size()
 
-        base = (boardSize ** 2) - len(board.get_all_numbers()) + board.get_holes() + board.get_sequences()
+        base = (boardSize ** 2) - len(board.get_all_numbers()) + board.get_holes()
         if node.path_cost != 0:
             parentBoard = node.parent.state.get_board()
             action = node.action
